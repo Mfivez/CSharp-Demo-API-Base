@@ -2,6 +2,7 @@
 using Démo_simple_API.DTO.Product;
 using Domain.Entities;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Démo_simple_API.Controllers
@@ -59,7 +60,8 @@ namespace Démo_simple_API.Controllers
 
             _productService.CreateProduct(product);
 
-            return Ok();
+            return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+
         }
 
         [HttpPut("{id}")]
@@ -74,14 +76,14 @@ namespace Démo_simple_API.Controllers
 
             _productService.UpdateProduct(product);
 
-            return Ok();
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public ActionResult Delete(int id)
         {
             _productService.DeleteProduct(id);
-            return Ok();
+            return NoContent(); ;
         }
     }
 }
