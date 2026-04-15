@@ -26,5 +26,20 @@ namespace BLL.Services
         {
             return _productRepository.GetById(id);
         }
+
+        public void CreateProduct(Product product)
+        {
+            _productRepository.Add(product);
+        }
+
+        public void UpdateProduct(Product product)
+        {
+            _productRepository.Update(product);
+        }
+
+        public void DeleteProduct(int id)
+        {
+            _productRepository.Delete(id);
+        }
     }
 }

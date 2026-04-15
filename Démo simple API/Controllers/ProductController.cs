@@ -35,5 +35,27 @@ namespace Démo_simple_API.Controllers
 
             return Ok(product);
         }
+
+
+        [HttpPost]
+        public ActionResult Create(Product product)
+        {
+            _productService.CreateProduct(product);
+            return Ok();
+        }
+        
+        [HttpPut("{id}")]
+        public ActionResult Update(int id, Product product)
+        {
+            _productService.UpdateProduct(product);
+            return Ok();
+        }
+
+        [HttpDelete("{id}")]
+        public ActionResult Delete(int id)
+        {
+            _productService.DeleteProduct(id);
+            return Ok();
+        }
     }
 }
