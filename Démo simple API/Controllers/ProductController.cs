@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using BLL.Interfaces;
+﻿using BLL.Interfaces;
+using Démo_simple_API.DTO.Product;
 using Domain.Entities;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Démo_simple_API.Controllers
 {
@@ -17,37 +18,62 @@ namespace Démo_simple_API.Controllers
         }
 
         [HttpGet]
-        public ActionResult<List<Product>> GetAll()
+        public ActionResult<List<ProductResponse>> GetAll()
         {
-            List<Product> products = _productService.GetAllProducts();
-            return Ok(products);
+            var products = _productService.GetAllProducts();
+
+            var response = products.Select(p => new ProductResponse
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Price = p.Price
+            }).ToList();
+
+            return Ok(response);
         }
 
         [HttpGet("{id}")]
-        public ActionResult<Product> GetById(int id)
+        public ActionResult<ProductResponse> GetById(int id)
         {
             var product = _productService.GetProductById(id);
 
-            if (product == null)
+            var response = new ProductResponse
             {
-                return NotFound("Produit non trouvé");
-            }
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price
+            };
 
-            return Ok(product);
+            return Ok(response);
         }
 
 
         [HttpPost]
-        public ActionResult Create(Product product)
+        public ActionResult Create(ProductCreateRequest request)
         {
+            var product = new Product
+            {
+                Name = request.Name,
+                Price = request.Price
+            };
+
             _productService.CreateProduct(product);
+
             return Ok();
         }
-        
+
         [HttpPut("{id}")]
-        public ActionResult Update(int id, Product product)
+        public ActionResult Update(int id, ProductUpdateRequest request)
         {
+            var product = new Product
+            {
+                Id = request.Id,
+                Name = request.Name,
+                Price = request.Price
+            };
+
             _productService.UpdateProduct(product);
+
             return Ok();
         }
 
