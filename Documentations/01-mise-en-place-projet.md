@@ -22,11 +22,9 @@ En résumé, on part de la structure, puis des données, puis de la logique, pui
 # 1. Commencer par l’architecture
 
 Avant d’écrire du code métier, on prépare les dossiers pour séparer les responsabilités.
-BLL/
-│   ├── IProductService.cs
-│   └── ProductService.cs
+
 ```text
-├── Controllers/
+├── API/
 │   ├── Program.cs
 │   └── appsettings.json
 ├── Domain/
