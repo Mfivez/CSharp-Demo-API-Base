@@ -4,7 +4,6 @@ using BLL.Interfaces;
 using BLL.Services;
 using Démo_simple_API.MiddleWares;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -23,15 +22,13 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseExceptionHandler();
 }
 
+app.UseExceptionHandler();
 app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

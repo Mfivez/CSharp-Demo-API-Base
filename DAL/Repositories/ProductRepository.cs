@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using DAL.Interfaces;
+﻿using DAL.Interfaces;
 using Microsoft.Data.SqlClient;
 using Domain.Entities;
 using Microsoft.Extensions.Configuration;
@@ -22,7 +19,7 @@ namespace DAL.Repositories
             var products = new List<Product>();
 
             await using SqlConnection connection = new SqlConnection(_connectionString);
-            string query = "SELECT Id, Name, Price FROM Products";
+            const string query = "SELECT Id, Name, Price FROM Products";
 
             await using SqlCommand command = new SqlCommand(query, connection);
 
@@ -47,7 +44,7 @@ namespace DAL.Repositories
             Product? product = null;
 
             await using SqlConnection connection = new SqlConnection(_connectionString);
-            string query = "SELECT Id, Name, Price FROM Products WHERE Id = @Id";
+            const string query = "SELECT Id, Name, Price FROM Products WHERE Id = @Id";
 
             await using SqlCommand command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@Id", id);
@@ -68,11 +65,15 @@ namespace DAL.Repositories
             return product;
         }
 
-        public async Task AddAsync(Product product)
+        public async Task<int> AddAsync(Product product)
         {
             await using SqlConnection connection = new SqlConnection(_connectionString);
 
-            string query = "INSERT INTO Products (Name, Price) VALUES (@Name, @Price)";
+            const string query = """
+                INSERT INTO Products (Name, Price)
+                OUTPUT INSERTED.Id
+                VALUES (@Name, @Price)
+                """;
 
             await using SqlCommand command = new SqlCommand(query, connection);
 
@@ -80,14 +81,14 @@ namespace DAL.Repositories
             command.Parameters.AddWithValue("@Price", product.Price);
 
             await connection.OpenAsync();
-            await command.ExecuteNonQueryAsync();
+            return (int)await command.ExecuteScalarAsync();
         }
 
-        public async Task UpdateAsync(Product product)
+        public async Task<bool> UpdateAsync(Product product)
         {
             await using SqlConnection connection = new SqlConnection(_connectionString);
 
-            string query = "UPDATE Products SET Name = @Name, Price = @Price WHERE Id = @Id";
+            const string query = "UPDATE Products SET Name = @Name, Price = @Price WHERE Id = @Id";
 
             await using SqlCommand command = new SqlCommand(query, connection);
 
@@ -96,21 +97,25 @@ namespace DAL.Repositories
             command.Parameters.AddWithValue("@Price", product.Price);
 
             await connection.OpenAsync();
-            await command.ExecuteNonQueryAsync();
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+
+            return rowsAffected > 0;
         }
 
-        public async Task DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id)
         {
             await using SqlConnection connection = new SqlConnection(_connectionString);
 
-            string query = "DELETE FROM Products WHERE Id = @Id";
+            const string query = "DELETE FROM Products WHERE Id = @Id";
 
             await using SqlCommand command = new SqlCommand(query, connection);
 
             command.Parameters.AddWithValue("@Id", id);
 
             await connection.OpenAsync();
-            await command.ExecuteNonQueryAsync();
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+
+            return rowsAffected > 0;
         }
     }
 }

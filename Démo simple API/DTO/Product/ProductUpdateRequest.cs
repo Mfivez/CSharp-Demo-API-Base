@@ -4,8 +4,6 @@ namespace Démo_simple_API.DTO.Product
 {
     public class ProductUpdateRequest
     {
-        [Required]
-        public int Id { get; set; }
 
         [Required]
         [StringLength(100)]

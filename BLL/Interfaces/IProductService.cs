@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Domain.Entities;
+﻿using Domain.Entities;
 
 namespace BLL.Interfaces
 {
@@ -9,7 +6,7 @@ namespace BLL.Interfaces
     {
         Task<List<Product>> GetAllProductsAsync();
         Task<Product> GetProductByIdAsync(int id);
-        Task CreateProductAsync(Product product);
+        Task<int> CreateProductAsync(Product product);
         Task UpdateProductAsync(Product product);
         Task DeleteProductAsync(int id);
     }

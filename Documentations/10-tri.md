@@ -5,7 +5,7 @@ Jusqu’ici, notre API permet :
 * de récupérer des produits
 * de paginer les résultats
 
-Mais il manque une fonctionnalité importante :
+Mais il manque une fonctionnalité essentielle :
 
 **filtrer les données**
 
@@ -19,7 +19,10 @@ Aujourd’hui :
 GET /api/products
 ```
 
-renvoie tous les produits (ou paginés)
+renvoie :
+
+* tous les produits
+* ou une page de produits
 
 Mais le client ne peut pas :
 
@@ -43,21 +46,30 @@ ou :
 GET /api/products?name=stylo
 ```
 
-pour récupérer uniquement ce qui l’intéresse
+pour récupérer uniquement ce qui l’intéresse.
 
 ---
 
 # 3. Principe
 
-On ajoute des **paramètres optionnels** :
+On ajoute des **paramètres optionnels** dans la requête HTTP :
 
 ```text
 page, pageSize, minPrice, maxPrice, name
 ```
 
+Chaque paramètre peut être :
+
+* présent → filtre appliqué
+* absent → ignoré
+
 ---
 
 # 4. Adapter le controller
+
+On ajoute simplement les paramètres dans l’action.
+
+## ProductsController.cs
 
 ```csharp
 [HttpGet]
@@ -68,7 +80,22 @@ public async Task<ActionResult<List<ProductResponse>>> GetAll(
     decimal? maxPrice = null,
     string? name = null)
 {
-    var products = await _productService.GetAllProductsAsync(page, pageSize, minPrice, maxPrice, name);
+    if (page < 1)
+    {
+        page = 1;
+    }
+
+    if (pageSize > 50)
+    {
+        pageSize = 50;
+    }
+
+    var products = await _productService.GetAllProductsAsync(
+        page,
+        pageSize,
+        minPrice,
+        maxPrice,
+        name);
 
     var response = products.Select(ProductMapper.ToResponse).ToList();
 
@@ -80,6 +107,10 @@ public async Task<ActionResult<List<ProductResponse>>> GetAll(
 
 # 5. Adapter le service
 
+Le service ne fait que transmettre les paramètres.
+
+## ProductService.cs
+
 ```csharp
 public async Task<List<Product>> GetAllProductsAsync(
     int page,
@@ -88,19 +119,53 @@ public async Task<List<Product>> GetAllProductsAsync(
     decimal? maxPrice,
     string? name)
 {
-    return await _productRepository.GetAllAsync(page, pageSize, minPrice, maxPrice, name);
+    return await _productRepository.GetAllAsync(
+        page,
+        pageSize,
+        minPrice,
+        maxPrice,
+        name);
 }
+```
+
+---
+
+## Interface
+
+```csharp
+Task<List<Product>> GetAllProductsAsync(
+    int page,
+    int pageSize,
+    decimal? minPrice,
+    decimal? maxPrice,
+    string? name);
 ```
 
 ---
 
 # 6. Adapter le repository
 
-C’est ici que ça devient intéressant
+C’est ici que l’on applique réellement les filtres.
 
 ---
 
-## Construire une requête dynamique
+## Principe
+
+On construit la requête SQL **dynamiquement**.
+
+On part d’une base :
+
+```sql
+WHERE 1=1
+```
+
+Puis on ajoute les filtres uniquement si nécessaire.
+
+---
+
+## Code
+
+### ProductRepository.cs
 
 ```csharp
 public async Task<List<Product>> GetAllAsync(
@@ -112,11 +177,11 @@ public async Task<List<Product>> GetAllAsync(
 {
     var products = new List<Product>();
 
-    using SqlConnection connection = new SqlConnection(_connectionString);
+    await using SqlConnection connection = new SqlConnection(_connectionString);
 
     var query = "SELECT Id, Name, Price FROM Products WHERE 1=1";
 
-    using SqlCommand command = new SqlCommand();
+    await using SqlCommand command = new SqlCommand();
     command.Connection = connection;
 
     // filtre minPrice
@@ -155,7 +220,7 @@ public async Task<List<Product>> GetAllAsync(
 
     await connection.OpenAsync();
 
-    using SqlDataReader reader = await command.ExecuteReaderAsync();
+    await using SqlDataReader reader = await command.ExecuteReaderAsync();
 
     while (await reader.ReadAsync())
     {
@@ -171,6 +236,19 @@ public async Task<List<Product>> GetAllAsync(
 
     return products;
 }
+```
+
+---
+
+## Interface repository
+
+```csharp
+Task<List<Product>> GetAllAsync(
+    int page,
+    int pageSize,
+    decimal? minPrice,
+    decimal? maxPrice,
+    string? name);
 ```
 
 ---
@@ -195,7 +273,7 @@ GET /api/products?name=stylo
 
 ---
 
-## Combiner avec pagination
+## Combiner filtres + pagination
 
 ```http
 GET /api/products?page=2&pageSize=5&minPrice=10
@@ -203,12 +281,121 @@ GET /api/products?page=2&pageSize=5&minPrice=10
 
 ---
 
-# 8. Pourquoi utiliser des paramètres optionnels ?
+## Combinaison complète
 
-Parce que le client choisit ce qu’il veut filtrer
-
-* aucun filtre → tous les produits
-* un filtre → filtré
-* plusieurs → combiné
+```http
+GET /api/products?page=1&pageSize=10&minPrice=10&maxPrice=100&name=stylo
+```
 
 ---
+
+# 8. Pourquoi utiliser des paramètres optionnels ?
+
+Parce que le client choisit ce qu’il veut faire :
+
+* aucun filtre → tous les produits
+* un filtre → filtrage simple
+* plusieurs filtres → filtrage combiné
+
+---
+
+# 9. Pourquoi `WHERE 1=1` ?
+
+C’est une astuce pour simplifier la construction dynamique.
+
+Au lieu de gérer :
+
+```sql
+WHERE Price >= ...
+```
+
+ou :
+
+```sql
+WHERE Price >= ... AND Name LIKE ...
+```
+
+on écrit toujours :
+
+```sql
+WHERE 1=1
+```
+
+Puis on ajoute simplement :
+
+```sql
+AND ...
+```
+
+---
+
+# 10. Sécurité (important)
+
+Même si on construit la requête dynamiquement :
+
+on utilise **toujours des paramètres SQL**
+
+```csharp
+command.Parameters.AddWithValue(...)
+```
+
+Donc :
+
+* pas de concaténation dangereuse
+* protection contre les injections SQL
+
+---
+
+# 11. Schéma mental
+
+```text
+Controller → reçoit les filtres
+Service    → transmet
+Repository → construit la requête SQL
+SQL        → applique filtres + pagination
+```
+
+---
+
+# 12. Résumé
+
+Avant :
+
+* impossible de filtrer
+* données trop générales
+
+Après :
+
+* filtres dynamiques
+* recherche par nom
+* filtrage par prix
+* combinable avec pagination
+
+---
+
+# 13. Conclusion
+
+Avec les filtres :
+
+* l’API devient beaucoup plus utile
+* le client récupère seulement ce dont il a besoin
+* les performances sont meilleures
+
+On combine maintenant :
+
+* pagination
+* filtres
+* mapping propre
+
+---
+
+# 14. Schéma final
+
+```text
+GET /api/products?page=2&pageSize=5&minPrice=10&name=stylo
+
+→ Controller
+→ Service
+→ Repository (SQL dynamique)
+→ Résultat filtré + paginé
+```

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Domain.Entities;
+﻿using Domain.Entities;
 
 namespace DAL.Interfaces
 {
@@ -9,8 +6,8 @@ namespace DAL.Interfaces
     {
         Task<List<Product>> GetAllAsync();
         Task<Product?> GetByIdAsync(int id);
-        Task AddAsync(Product product);
-        Task UpdateAsync(Product product);
-        Task DeleteAsync(int id);
+        Task<int> AddAsync(Product product);
+        Task<bool> UpdateAsync(Product product);
+        Task<bool> DeleteAsync(int id);
     }
 }

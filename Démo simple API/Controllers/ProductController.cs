@@ -1,8 +1,6 @@
 ﻿using BLL.Interfaces;
 using Démo_simple_API.DTO.Product;
 using Domain.Entities;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Démo_simple_API.Controllers
@@ -48,9 +46,8 @@ namespace Démo_simple_API.Controllers
             return Ok(response);
         }
 
-
         [HttpPost]
-        public async Task<ActionResult> Create(ProductCreateRequest request)
+        public async Task<ActionResult<ProductResponse>> Create(ProductCreateRequest request)
         {
             var product = new Product
             {
@@ -58,18 +55,25 @@ namespace Démo_simple_API.Controllers
                 Price = request.Price
             };
 
-            await _productService.CreateProductAsync(product);
+            int newId = await _productService.CreateProductAsync(product);
 
-            return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+            var response = new ProductResponse
+            {
+                Id = newId,
+                Name = product.Name,
+                Price = product.Price
+            };
 
+            return CreatedAtAction(nameof(GetById), new { id = newId }, response);
         }
 
         [HttpPut("{id}")]
         public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
         {
+
             var product = new Product
             {
-                Id = request.Id,
+                Id = id,
                 Name = request.Name,
                 Price = request.Price
             };
@@ -83,7 +87,7 @@ namespace Démo_simple_API.Controllers
         public async Task<ActionResult> Delete(int id)
         {
             await _productService.DeleteProductAsync(id);
-            return NoContent(); ;
+            return NoContent();
         }
     }
 }

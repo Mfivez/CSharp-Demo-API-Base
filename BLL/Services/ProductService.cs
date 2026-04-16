@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using BLL.Interfaces;
+﻿using BLL.Interfaces;
 using DAL.Interfaces;
 using Domain.Entities;
 
@@ -23,29 +20,39 @@ namespace BLL.Services
 
         public async Task<Product> GetProductByIdAsync(int id)
         {
-            Product? product =  await _productRepository.GetByIdAsync(id);
+            Product? product = await _productRepository.GetByIdAsync(id);
 
             if (product == null)
             {
-                throw new ArgumentException("Produit introuvable");
+                throw new KeyNotFoundException("Produit introuvable");
             }
 
             return product;
         }
 
-        public async Task CreateProductAsync(Product product)
+        public async Task<int> CreateProductAsync(Product product)
         {
-            await _productRepository.AddAsync(product);
+            return await _productRepository.AddAsync(product);
         }
 
         public async Task UpdateProductAsync(Product product)
         {
-            await _productRepository.UpdateAsync(product);
+            bool updated = await _productRepository.UpdateAsync(product);
+
+            if (!updated)
+            {
+                throw new KeyNotFoundException("Produit introuvable");
+            }
         }
 
         public async Task DeleteProductAsync(int id)
         {
-            await _productRepository.DeleteAsync(id);
+            bool deleted = await _productRepository.DeleteAsync(id);
+
+            if (!deleted)
+            {
+                throw new KeyNotFoundException("Produit introuvable");
+            }
         }
     }
 }
