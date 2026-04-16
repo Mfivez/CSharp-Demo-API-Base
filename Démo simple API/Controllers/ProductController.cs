@@ -1,5 +1,7 @@
 ﻿using BLL.Interfaces;
+using DAL.Filters.Product;
 using Démo_simple_API.DTO.Product;
+using Demo_simple_API.DTO.Product;
 using Démo_simple_API.Mappers;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,12 +19,19 @@ namespace Démo_simple_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<ProductResponse>>> GetAll(int page = 1, int pageSize = 10)
+        public async Task<ActionResult<List<ProductResponse>>> GetAll([FromQuery] ProductGetAllRequest request)
         {
-            page = page < 1 ? 1 : page;
-            pageSize = pageSize > 50 ? 50 : pageSize;
+            // on aurait pu faire un mapper ici aussi.
+            var filter = new ProductFilter
+            {
+                Page = request.Page < 1 ? 1 : request.Page,
+                PageSize = request.PageSize > 50 ? 50 : request.PageSize,
+                MinPrice = request.MinPrice,
+                MaxPrice = request.MaxPrice,
+                Name = request.Name
+            };
 
-            var products = await _productService.GetAllProductsAsync(page, pageSize);
+            var products = await _productService.GetAllProductsAsync(filter);
 
             var response = products.Select(ProductMapper.ToResponse).ToList();
 

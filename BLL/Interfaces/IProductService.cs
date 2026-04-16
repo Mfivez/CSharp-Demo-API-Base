@@ -1,10 +1,11 @@
-﻿using Domain.Entities;
+﻿using DAL.Filters.Product;
+using Domain.Entities;
 
 namespace BLL.Interfaces
 {
     public interface IProductService
     {
-        Task<List<Product>> GetAllProductsAsync(int page, int pageSize);
+        Task<List<Product>> GetAllProductsAsync(ProductFilter filter);
         Task<Product> GetProductByIdAsync(int id);
         Task<int> CreateProductAsync(Product product);
         Task UpdateProductAsync(Product product);

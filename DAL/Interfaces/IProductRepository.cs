@@ -1,10 +1,11 @@
-﻿using Domain.Entities;
+﻿using DAL.Filters.Product;
+using Domain.Entities;
 
 namespace DAL.Interfaces
 {
     public interface IProductRepository
     {
-        Task<List<Product>> GetAllAsync(int page, int pageSize);
+        Task<List<Product>> GetAllAsync(ProductFilter filter);
         Task<Product?> GetByIdAsync(int id);
         Task<int> AddAsync(Product product);
         Task<bool> UpdateAsync(Product product);

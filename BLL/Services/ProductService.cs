@@ -1,4 +1,5 @@
-﻿using BLL.Interfaces;
+﻿using DAL.Filters.Product;
+using BLL.Interfaces;
 using DAL.Interfaces;
 using Domain.Entities;
 
@@ -13,10 +14,15 @@ namespace BLL.Services
             _productRepository = productRepository;
         }
 
-        public async Task<List<Product>> GetAllProductsAsync(int page, int pageSize)
+        public async Task<List<Product>> GetAllProductsAsync(ProductFilter filter)
         {
-            return await _productRepository.GetAllAsync(page, pageSize);
+            if (filter.MinPrice.HasValue && filter.MaxPrice.HasValue && filter.MinPrice > filter.MaxPrice)
+            {
+                throw new ArgumentException("Le prix minimum ne peut pas être supérieur au prix maximum.");
+            }
+            return await _productRepository.GetAllAsync(filter);
         }
+
 
         public async Task<Product> GetProductByIdAsync(int id)
         {
