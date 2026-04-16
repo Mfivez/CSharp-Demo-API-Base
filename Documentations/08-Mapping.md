@@ -367,109 +367,7 @@ namespace Démo_simple_API.Controllers
 
 ---
 
-# 7. DTO actuels
-
-## ProductCreateRequest.cs
-
-```csharp
-using System.ComponentModel.DataAnnotations;
-
-namespace Démo_simple_API.DTO.Product
-{
-    public class ProductCreateRequest
-    {
-        [Required]
-        [StringLength(100)]
-        public string Name { get; set; } = "";
-
-        [Range(0.01, 10000)]
-        public decimal Price { get; set; }
-    }
-}
-```
-
-## ProductUpdateRequest.cs
-
-```csharp
-using System.ComponentModel.DataAnnotations;
-
-namespace Démo_simple_API.DTO.Product
-{
-    public class ProductUpdateRequest
-    {
-        [Required]
-        [StringLength(100)]
-        public string Name { get; set; } = "";
-
-        [Range(0.01, 10000)]
-        public decimal Price { get; set; }
-    }
-}
-```
-
-## ProductResponse.cs
-
-```csharp
-namespace Démo_simple_API.DTO.Product
-{
-    public class ProductResponse
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = "";
-        public decimal Price { get; set; }
-    }
-}
-```
-
----
-
-# 8. Mapper final
-
-## Mappers/ProductMapper.cs
-
-```csharp
-using Démo_simple_API.DTO.Product;
-using Domain.Entities;
-
-namespace Démo_simple_API.Mappers
-{
-    public static class ProductMapper
-    {
-        public static ProductResponse ToResponse(Product product)
-        {
-            return new ProductResponse
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Price = product.Price
-            };
-        }
-
-        public static Product ToEntity(ProductCreateRequest request)
-        {
-            return new Product
-            {
-                Name = request.Name,
-                Price = request.Price
-            };
-        }
-
-        public static Product ToEntity(ProductUpdateRequest request, int id)
-        {
-            return new Product
-            {
-                Id = id,
-                Name = request.Name,
-                Price = request.Price
-            };
-        }
-    }
-}
-```
-
----
-
-# 9. Pourquoi c’est mieux ?
+# Pourquoi c’est mieux ?
 
 Avec cette organisation :
 
@@ -482,7 +380,7 @@ Le controller reste concentré sur son vrai rôle : gérer HTTP.
 
 ---
 
-# 10. Schéma mental
+# Schéma mental
 
 ```text
 DTO ↔ Mapper ↔ Domain
@@ -490,7 +388,7 @@ DTO ↔ Mapper ↔ Domain
 
 ---
 
-# 11. Peut-on faire mieux plus tard ?
+# Peut-on faire mieux plus tard ?
 
 Oui, plus tard on pourra utiliser un outil comme :
 
@@ -504,7 +402,7 @@ Mais pour apprendre et pour un petit projet, le mapping manuel est très bien :
 
 ---
 
-# 12. Résumé
+# Résumé
 
 Avant :
 
@@ -520,7 +418,7 @@ Après :
 
 ---
 
-# 13. Conclusion
+# Conclusion
 
 Quand on commence à utiliser des DTO, il est préférable de ne pas laisser tout le mapping dans les controllers.
 

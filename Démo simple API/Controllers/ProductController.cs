@@ -1,6 +1,6 @@
 ﻿using BLL.Interfaces;
 using Démo_simple_API.DTO.Product;
-using Domain.Entities;
+using Démo_simple_API.Mappers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Démo_simple_API.Controllers
@@ -21,12 +21,7 @@ namespace Démo_simple_API.Controllers
         {
             var products = await _productService.GetAllProductsAsync();
 
-            var response = products.Select(p => new ProductResponse
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Price = p.Price
-            }).ToList();
+            var response = products.Select(ProductMapper.ToResponse).ToList();
 
             return Ok(response);
         }
@@ -36,47 +31,25 @@ namespace Démo_simple_API.Controllers
         {
             var product = await _productService.GetProductByIdAsync(id);
 
-            var response = new ProductResponse
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Price = product.Price
-            };
-
-            return Ok(response);
+            return Ok(ProductMapper.ToResponse(product));
         }
 
         [HttpPost]
         public async Task<ActionResult<ProductResponse>> Create(ProductCreateRequest request)
         {
-            var product = new Product
-            {
-                Name = request.Name,
-                Price = request.Price
-            };
+            var product = ProductMapper.ToEntity(request);
 
             int newId = await _productService.CreateProductAsync(product);
 
-            var response = new ProductResponse
-            {
-                Id = newId,
-                Name = product.Name,
-                Price = product.Price
-            };
+            product.Id = newId;
 
-            return CreatedAtAction(nameof(GetById), new { id = newId }, response);
+            return CreatedAtAction(nameof(GetById), new { id = newId }, ProductMapper.ToResponse(product));
         }
 
         [HttpPut("{id}")]
         public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
         {
-
-            var product = new Product
-            {
-                Id = id,
-                Name = request.Name,
-                Price = request.Price
-            };
+            var product = ProductMapper.ToEntity(request, id);
 
             await _productService.UpdateProductAsync(product);
 
@@ -87,6 +60,7 @@ namespace Démo_simple_API.Controllers
         public async Task<ActionResult> Delete(int id)
         {
             await _productService.DeleteProductAsync(id);
+
             return NoContent();
         }
     }
