@@ -6,4 +6,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="02-exo-crud-product.md" />
+    <Compile Include="04-Validation.md" />
+    <Compile Include="03-DTOs.md" />
+    <Compile Include="05-Codes-http.md" />
+    <Compile Include="06-Async-Await.md" />
+    <Compile Include="10-tri.md" />
+  </ItemGroup>
+
 </Project>

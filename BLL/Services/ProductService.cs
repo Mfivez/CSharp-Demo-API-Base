@@ -23,11 +23,11 @@ namespace BLL.Services
 
         public async Task<Product> GetProductByIdAsync(int id)
         {
-            Product? product = await _productRepository.GetByIdAsync(id);
+            Product? product =  await _productRepository.GetByIdAsync(id);
 
-            if (product == null) 
+            if (product == null)
             {
-                throw new KeyNotFoundException();
+                throw new ArgumentException("Produit introuvable");
             }
 
             return product;

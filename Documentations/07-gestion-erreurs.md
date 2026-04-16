@@ -1,8 +1,4 @@
-Parfait 👍 on continue dans le même style, clair et progressif.
-
----
-
-# Cours — La gestion des erreurs dans une API ASP.NET Core
+# Cours — La gestion des erreurs dans une API ASP.NET Core (.NET 9)
 
 Jusqu’ici, notre API :
 
@@ -11,7 +7,7 @@ Jusqu’ici, notre API :
 * appelle le service
 * accède à la base
 
-Il est maintenant temps d'attaquer :
+Il est maintenant temps d’attaquer :
 
 **la gestion des erreurs**
 
@@ -27,50 +23,40 @@ connection.Open(); // erreur possible
 ```
 
 que se passe-t-il ?
+
 * exception levée
-* API plante
-* réponse incohérente
+* réponse non maîtrisée
+* parfois une erreur technique envoyée au client
 
----
-
-## Exemple
-
-Si SQL est arrêté :
-
-le client peut recevoir :
-
-* une erreur technique
-* ou une réponse non contrôlée
-
----
-
-## Pourquoi c’est un problème ?
-
-* mauvaise expérience utilisateur
-* difficile à déboguer
-* pas propre
-
-et je le rappelle, une API doit toujours répondre proprement, même quand il s'agit d'erreur
+En production, une API ne doit pas renvoyer une stack trace brute ou une réponse incohérente. ASP.NET Core distingue d’ailleurs clairement le comportement de développement et celui de production. ([Microsoft Learn][2])
 
 ---
 
 # 2. Objectif de la gestion des erreurs
 
-Toujours renvoyer une réponse claire et controllée
+Toujours renvoyer une réponse :
+
+* claire
+* contrôlée
+* cohérente
+
+En API moderne, le format recommandé est **Problem Details**. ASP.NET Core sait générer ce format via `AddProblemDetails()`. ([Microsoft Learn][1])
 
 Exemple :
 
 ```json
 {
-  "message": "Une erreur est survenue"
+  "type": "about:blank",
+  "title": "Une erreur est survenue",
+  "status": 500
 }
 ```
 
 ---
 
-# 3. Première approche : try/catch
+# 3. Première approche : try/catch dans le controller
 
-On peut gérer les erreurs dans le controller :
+On pourrait faire :
 
 ```csharp
 [HttpGet]
@@ -92,207 +78,231 @@ public ActionResult GetAll()
 
 ## Problème de cette approche
 
-* répétitif 
-* lourd 
-* difficile à maintenir 
+* répétitif
+* lourd
+* difficile à maintenir
 
-chaque méthode doit gérer ses erreurs
-
----
-
-# 4. L’idée du middleware global
-
-ASP.NET Core permet de :
-
-intercepter toutes les erreurs au même endroit
-
-C’est ce qu’on appelle :
-
-**un middleware**
+Chaque action finit par gérer ses propres erreurs, ce qui alourdit inutilement le code.
 
 ---
 
-# 5. Principe du middleware d’erreur
+# 4. L’approche recommandée en .NET 9
+
+En **.NET 9**, on préfère utiliser le système natif fourni par ASP.NET Core :
+
+* `UseExceptionHandler()`
+* `IExceptionHandler`
+* `AddProblemDetails()`
+
+`UseExceptionHandler()` ajoute le middleware global de gestion des exceptions. `IExceptionHandler` permet de centraliser la logique métier de traitement des exceptions. `AddProblemDetails()` permet de produire des réponses d’erreur standardisées pour les APIs. ([Microsoft Learn][1])
+
+---
+
+# 5. Principe
 
 ```text
-Requête → Pipeline → Controller → Exception
-                      ↓
-                 Middleware
-                      ↓
-                 Réponse propre
+Client → Middleware → Controller → Service → Repository
+                 ↑
+            IExceptionHandler
+                 ↑
+         Réponse ProblemDetails
 ```
+
+Si une exception non gérée remonte, le middleware d’exception l’intercepte. Ensuite, un `IExceptionHandler` peut la traiter et renvoyer une réponse propre. Si aucun handler ne la traite, le middleware applique son comportement par défaut. ([Microsoft Learn][3])
 
 ---
 
-# 6. Créer un middleware simple
+# 6. Enregistrer les services
 
-## API/Middlewares/ExceptionMiddleware.cs
+## Program.cs
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler();
+}
+
+app.MapControllers();
+
+app.Run();
+```
+
+`AddProblemDetails()` enregistre le service chargé de produire les réponses d’erreur. `AddExceptionHandler<T>()` enregistre ton gestionnaire global d’exceptions. En environnement non développement, `UseExceptionHandler()` active le middleware d’exception. ([Microsoft Learn][1])
+
+---
+
+# 7. Créer le handler global
+
+## GlobalExceptionHandler.cs
 
 ```csharp
 using System.Net;
-using System.Text.Json;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 
-public class ExceptionMiddleware
+public class GlobalExceptionHandler : IExceptionHandler
 {
-    private readonly RequestDelegate _next;
-
-    public ExceptionMiddleware(RequestDelegate next)
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken)
     {
-        _next = next;
-    }
+        var statusCode = StatusCodes.Status500InternalServerError;
+        var title = "Une erreur interne est survenue";
 
-    public async Task Invoke(HttpContext context)
-    {
-        try
+        if (exception is ArgumentException)
         {
-            await _next(context);
+            statusCode = StatusCodes.Status400BadRequest;
+            title = exception.Message;
         }
-        catch (Exception)
-        {
-            await HandleException(context);
-        }
-    }
 
-    private static async Task HandleException(HttpContext context)
-    {
-        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-        context.Response.ContentType = "application/json";
-
-        var response = new
+        var problemDetails = new ProblemDetails
         {
-            message = "Une erreur interne est survenue"
+            Status = statusCode,
+            Title = title
         };
 
-        var json = JsonSerializer.Serialize(response);
+        httpContext.Response.StatusCode = statusCode;
 
-        await context.Response.WriteAsync(json);
+        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+
+        return true;
     }
 }
 ```
 
----
-
-# 7. Ajouter le middleware dans l’application
-
-## Program.cs
-
-Ajouter :
-
-```csharp
-app.UseMiddleware<ExceptionMiddleware>();
-```
-
-À placer avant :
-
-```csharp
-app.MapControllers();
-```
+`IExceptionHandler` expose une seule méthode : `TryHandleAsync(HttpContext, Exception, CancellationToken)`. Si cette méthode retourne `true`, cela signifie que l’exception a été gérée. ([Microsoft Learn][4])
 
 ---
 
 # 8. Résultat
 
-Avant :
-
-* crash
-* stacktrace
-
-Maintenant :
+Si une exception se produit, le client reçoit maintenant une réponse propre :
 
 ```json
 {
-  "message": "Une erreur interne est survenue"
+  "title": "Une erreur interne est survenue",
+  "status": 500
 }
 ```
+
+Et si l’exception correspond à une erreur métier simple :
+
+```json
+{
+  "title": "Produit introuvable",
+  "status": 400
+}
+```
+
+ASP.NET Core recommande justement l’usage de **Problem Details** pour décrire les erreurs HTTP dans une API. ([Microsoft Learn][1])
 
 ---
 
-# 9. Améliorer les messages (option simple)
+# 9. Pourquoi cette approche est meilleure que le middleware maison
 
-On peut adapter selon l’exception :
-
-```csharp
-catch (Exception ex)
-{
-    await HandleException(context, ex);
-}
-```
-
----
+Avant, on écrivait souvent un middleware personnalisé du style :
 
 ```csharp
-private static async Task HandleException(HttpContext context, Exception ex)
-{
-    context.Response.ContentType = "application/json";
-
-    var statusCode = HttpStatusCode.InternalServerError;
-    var message = "Une erreur interne est survenue";
-
-    if (ex is ArgumentException)
-    {
-        statusCode = HttpStatusCode.BadRequest;
-        message = ex.Message;
-    }
-
-    context.Response.StatusCode = (int)statusCode;
-
-    var response = new { message };
-
-    var json = JsonSerializer.Serialize(response);
-
-    await context.Response.WriteAsync(json);
-}
+app.UseMiddleware<ExceptionMiddleware>();
 ```
+
+Mais avec .NET 9, ce n’est plus nécessaire dans la majorité des cas :
+
+* le middleware officiel existe déjà avec `UseExceptionHandler()`
+* `IExceptionHandler` permet de brancher une logique personnalisée proprement
+* l’intégration avec `ProblemDetails` est native
+
+Donc le code est plus standard, plus propre, et plus proche de ce qu’attend l’écosystème ASP.NET Core moderne. ([Microsoft Learn][5])
 
 ---
 
 # 10. Où gérer les erreurs métier ?
 
-Dans le service
+Dans le service.
 
 Exemple :
 
 ```csharp
-if (product == null)
+public Product GetProductById(int id)
 {
-    throw new ArgumentException("Produit introuvable");
+    var product = _repository.GetById(id);
+
+    if (product == null)
+    {
+        throw new ArgumentException("Produit introuvable");
+    }
+
+    return product;
 }
 ```
 
-le middleware s’occupe de la réponse
+Le service détecte l’erreur métier.
+Le handler global transforme ensuite cette exception en réponse HTTP.
 
 ---
 
 # 11. Ce qui change dans le controller
 
-Rien
+Presque rien.
 
 ```csharp
 [HttpGet("{id}")]
 public ActionResult GetById(int id)
 {
     var product = _productService.GetProductById(id);
-
-    if (product == null)
-    {
-        return NotFound();
-    }
-
     return Ok(product);
 }
 ```
 
-pas de try/catch partout
+On évite de mettre des `try/catch` partout.
+La gestion des erreurs reste centralisée.
 
 ---
 
-# 12. Position dans le flow
+# 12. Bonus : erreurs 404 et autres codes HTTP
 
-```text
-Client → Middleware → Controller → Service → Repository
-                 ↑
-              Exception
+`UseExceptionHandler()` gère les **exceptions non gérées**.
+Mais pour les réponses comme **404 Not Found** sans corps, ASP.NET Core peut aussi générer une réponse standard avec `UseStatusCodePages()` combiné à `AddProblemDetails()`. ([Microsoft Learn][1])
+
+Exemple :
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler();
+}
+
+app.UseStatusCodePages();
+
+app.MapControllers();
+
+app.Run();
 ```
+
+Ainsi :
+
+* exception non gérée → ProblemDetails
+* 404 sans corps → ProblemDetails
+* 400/500 → format cohérent
+
+([Microsoft Learn][1])
 
 ---
 
@@ -301,27 +311,50 @@ Client → Middleware → Controller → Service → Repository
 Avant :
 
 * erreurs non gérées
+* réponses incohérentes
+* middleware maison ou `try/catch` partout
 
 Après :
 
 * erreurs centralisées
-* réponses propres
-* code simplifié
+* middleware natif ASP.NET Core
+* réponses standardisées
+* code plus propre
 
 ---
 
 # 14. Schéma mental
 
 ```text
-Middleware = gestion globale des erreurs
+UseExceptionHandler() = middleware global officiel
+IExceptionHandler     = logique personnalisée
+AddProblemDetails()   = format propre pour les erreurs API
 ```
 
 ---
 
 # 15. Conclusion
 
-Avec un middleware :
+Avec l’approche moderne en **.NET 9** :
 
-* l'API devient robuste
+* l’API devient plus robuste
 * tu évites la répétition
-* tu contrôles toutes les erreurs
+* tu utilises le middleware officiel
+* tu renvoies des erreurs propres au format standard
+
+En clair :
+
+**on ne crée plus forcément son propre `ExceptionMiddleware`**
+
+on s’appuie sur :
+
+* `UseExceptionHandler()`
+* `IExceptionHandler`
+* `ProblemDetails`
+
+## Docs
+[1]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0 "Handle errors in ASP.NET Core APIs | Microsoft Learn"
+[2]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0&utm_source=chatgpt.com "Handle errors in ASP.NET Core APIs"
+[3]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling?view=aspnetcore-10.0&utm_source=chatgpt.com "Handle errors in ASP.NET Core"
+[4]: https://learn.microsoft.com/fr-fr/dotnet/api/microsoft.aspnetcore.diagnostics.iexceptionhandler?view=aspnetcore-9.0&utm_source=chatgpt.com "IExceptionHandler Interface (Microsoft.AspNetCore. ..."
+[5]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling?view=aspnetcore-10.0 "Handle errors in ASP.NET Core | Microsoft Learn"
