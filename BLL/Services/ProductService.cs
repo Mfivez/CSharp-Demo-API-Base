@@ -16,30 +16,36 @@ namespace BLL.Services
             _productRepository = productRepository;
         }
 
-        public List<Product> GetAllProducts()
+        public async Task<List<Product>> GetAllProductsAsync()
         {
-            
-            return _productRepository.GetAll();
+            return await _productRepository.GetAllAsync();
         }
 
-        public Product? GetProductById(int id)
+        public async Task<Product> GetProductByIdAsync(int id)
         {
-            return _productRepository.GetById(id);
+            Product? product = await _productRepository.GetByIdAsync(id);
+
+            if (product == null) 
+            {
+                throw new KeyNotFoundException();
+            }
+
+            return product;
         }
 
-        public void CreateProduct(Product product)
+        public async Task CreateProductAsync(Product product)
         {
-            _productRepository.Add(product);
+            await _productRepository.AddAsync(product);
         }
 
-        public void UpdateProduct(Product product)
+        public async Task UpdateProductAsync(Product product)
         {
-            _productRepository.Update(product);
+            await _productRepository.UpdateAsync(product);
         }
 
-        public void DeleteProduct(int id)
+        public async Task DeleteProductAsync(int id)
         {
-            _productRepository.Delete(id);
+            await _productRepository.DeleteAsync(id);
         }
     }
 }

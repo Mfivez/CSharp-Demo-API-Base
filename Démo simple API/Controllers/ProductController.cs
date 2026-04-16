@@ -19,9 +19,9 @@ namespace Démo_simple_API.Controllers
         }
 
         [HttpGet]
-        public ActionResult<List<ProductResponse>> GetAll()
+        public async Task<ActionResult<List<ProductResponse>>> GetAll()
         {
-            var products = _productService.GetAllProducts();
+            var products = await _productService.GetAllProductsAsync();
 
             var response = products.Select(p => new ProductResponse
             {
@@ -34,9 +34,9 @@ namespace Démo_simple_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public ActionResult<ProductResponse> GetById(int id)
+        public async Task<ActionResult<ProductResponse>> GetById(int id)
         {
-            var product = _productService.GetProductById(id);
+            var product = await _productService.GetProductByIdAsync(id);
 
             var response = new ProductResponse
             {
@@ -50,7 +50,7 @@ namespace Démo_simple_API.Controllers
 
 
         [HttpPost]
-        public ActionResult Create(ProductCreateRequest request)
+        public async Task<ActionResult> Create(ProductCreateRequest request)
         {
             var product = new Product
             {
@@ -58,14 +58,14 @@ namespace Démo_simple_API.Controllers
                 Price = request.Price
             };
 
-            _productService.CreateProduct(product);
+            await _productService.CreateProductAsync(product);
 
             return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
 
         }
 
         [HttpPut("{id}")]
-        public ActionResult Update(int id, ProductUpdateRequest request)
+        public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
         {
             var product = new Product
             {
@@ -74,15 +74,15 @@ namespace Démo_simple_API.Controllers
                 Price = request.Price
             };
 
-            _productService.UpdateProduct(product);
+            await _productService.UpdateProductAsync(product);
 
             return NoContent();
         }
 
         [HttpDelete("{id}")]
-        public ActionResult Delete(int id)
+        public async Task<ActionResult> Delete(int id)
         {
-            _productService.DeleteProduct(id);
+            await _productService.DeleteProductAsync(id);
             return NoContent(); ;
         }
     }
