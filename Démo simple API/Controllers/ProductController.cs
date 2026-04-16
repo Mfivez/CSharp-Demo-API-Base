@@ -20,7 +20,7 @@ namespace Démo_simple_API.Controllers
         public async Task<ActionResult<List<ProductResponse>>> GetAll(int page = 1, int pageSize = 10)
         {
             page = page < 1 ? 1 : page;
-            pageSize = pageSize > 50 ? 50 : page;
+            pageSize = pageSize > 50 ? 50 : pageSize;
 
             var products = await _productService.GetAllProductsAsync(page, pageSize);
 
