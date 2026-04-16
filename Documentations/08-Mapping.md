@@ -1,6 +1,6 @@
 # Cours — Organiser le mapping (nettoyer les controllers)
 
-Jusqu’ici, on a introduit les DTO et on fait le mapping directement dans les controllers.
+Jusqu’ici, on a introduit les DTO et on fait encore le mapping directement dans les controllers.
 
 Ça fonctionne, mais ça pose un problème :
 
@@ -8,9 +8,11 @@ Jusqu’ici, on a introduit les DTO et on fait le mapping directement dans les c
 
 ---
 
-# Le problème actuel
+# 1. Le problème actuel
 
-Aujourd’hui, dans le controller :
+Aujourd’hui, dans le controller, on retrouve du code de transformation directement dans les actions.
+
+Exemple :
 
 ```csharp
 [HttpGet]
@@ -31,23 +33,42 @@ public async Task<ActionResult<List<ProductResponse>>> GetAll()
 
 ---
 
-## Résultat :
+## Résultat
 
-* duplication de code
-* logique mélangée
-* controller moins lisible
+On se retrouve avec :
 
-Hors, le controller devrait juste :
+* du code dupliqué
+* de la logique mélangée
+* des controllers moins lisibles
 
-* recevoir HTTP
+Or, le controller devrait surtout :
+
+* recevoir la requête HTTP
 * appeler le service
-* renvoyer une réponse
+* renvoyer la réponse HTTP
+
+Le mapping ne devrait pas alourdir cette couche.
 
 ---
 
-On va donc déplacer le mapping ailleurs
+# 2. L’idée
 
-Pour obtenir :
+On va déplacer le mapping dans une classe dédiée.
+
+Comme ça, le controller devient plus simple.
+
+Au lieu d’écrire :
+
+```csharp
+var response = products.Select(p => new ProductResponse
+{
+    Id = p.Id,
+    Name = p.Name,
+    Price = p.Price
+}).ToList();
+```
+
+on pourra écrire :
 
 ```csharp
 var response = products.Select(ProductMapper.ToResponse).ToList();
@@ -55,67 +76,108 @@ var response = products.Select(ProductMapper.ToResponse).ToList();
 
 ---
 
-# Où mettre le mapping ?
+# 3. Où mettre le mapping ?
 
-Dans une classe dédiée
+Dans une classe dédiée, côté API.
+
+Par exemple :
+
+```text
+Démo_simple_API/
+ └── Mappers/
+     └── ProductMapper.cs
+```
 
 ---
 
-## API/Mappers/ProductMapper.cs
+## Pourquoi dans l’API ?
 
-Pourquoi dans l’API ?
+Parce que le mapping concerne ici :
 
-* lié aux DTO
-* utilisé par les controllers
+* les DTO
+* les controllers
+* la forme des requêtes et des réponses HTTP
+
+Le domaine (`Domain`) ne doit pas dépendre des DTO de l’API.
+
+Le mapper a donc naturellement sa place dans le projet API.
 
 ---
 
-# Créer un mapper simple
+# 4. Créer un mapper simple
+
+## Mappers/ProductMapper.cs
 
 ```csharp
-using MyApi.Domain;
-using MyApi.DTO.Product;
+using Démo_simple_API.DTO.Product;
+using Domain.Entities;
 
-public static class ProductMapper
+namespace Démo_simple_API.Mappers
 {
-    public static ProductResponse ToResponse(Product product)
+    public static class ProductMapper
     {
-        return new ProductResponse
+        public static ProductResponse ToResponse(Product product)
         {
-            Id = product.Id,
-            Name = product.Name,
-            Price = product.Price
-        };
-    }
+            return new ProductResponse
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price
+            };
+        }
 
-    public static Product ToEntity(ProductCreateRequest request)
-    {
-        return new Product
+        public static Product ToEntity(ProductCreateRequest request)
         {
-            Name = request.Name,
-            Price = request.Price
-        };
-    }
+            return new Product
+            {
+                Name = request.Name,
+                Price = request.Price
+            };
+        }
 
-    public static Product ToEntity(ProductUpdateRequest request)
-    {
-        return new Product
+        public static Product ToEntity(ProductUpdateRequest request, int id)
         {
-            Id = request.Id,
-            Name = request.Name,
-            Price = request.Price
-        };
+            return new Product
+            {
+                Id = id,
+                Name = request.Name,
+                Price = request.Price
+            };
+        }
     }
 }
 ```
 
 ---
 
-# Utiliser le mapper dans le controller
+# 5. Utiliser le mapper dans le controller
+
+Maintenant, on peut simplifier les actions du controller.
 
 ---
 
 ## GET all
+
+Avant :
+
+```csharp
+[HttpGet]
+public async Task<ActionResult<List<ProductResponse>>> GetAll()
+{
+    var products = await _productService.GetAllProductsAsync();
+
+    var response = products.Select(p => new ProductResponse
+    {
+        Id = p.Id,
+        Name = p.Name,
+        Price = p.Price
+    }).ToList();
+
+    return Ok(response);
+}
+```
+
+Après :
 
 ```csharp
 [HttpGet]
@@ -129,9 +191,13 @@ public async Task<ActionResult<List<ProductResponse>>> GetAll()
 }
 ```
 
+Le controller devient immédiatement plus lisible.
+
 ---
 
 ## GET by id
+
+Avant :
 
 ```csharp
 [HttpGet("{id}")]
@@ -139,10 +205,24 @@ public async Task<ActionResult<ProductResponse>> GetById(int id)
 {
     var product = await _productService.GetProductByIdAsync(id);
 
-    if (product == null)
+    var response = new ProductResponse
     {
-        return NotFound();
-    }
+        Id = product.Id,
+        Name = product.Name,
+        Price = product.Price
+    };
+
+    return Ok(response);
+}
+```
+
+Après :
+
+```csharp
+[HttpGet("{id}")]
+public async Task<ActionResult<ProductResponse>> GetById(int id)
+{
+    var product = await _productService.GetProductByIdAsync(id);
 
     return Ok(ProductMapper.ToResponse(product));
 }
@@ -152,15 +232,44 @@ public async Task<ActionResult<ProductResponse>> GetById(int id)
 
 ## POST
 
+Avant :
+
 ```csharp
 [HttpPost]
-public async Task<ActionResult> Create(ProductCreateRequest request)
+public async Task<ActionResult<ProductResponse>> Create(ProductCreateRequest request)
+{
+    var product = new Product
+    {
+        Name = request.Name,
+        Price = request.Price
+    };
+
+    int newId = await _productService.CreateProductAsync(product);
+
+    var response = new ProductResponse
+    {
+        Id = newId,
+        Name = product.Name,
+        Price = product.Price
+    };
+
+    return CreatedAtAction(nameof(GetById), new { id = newId }, response);
+}
+```
+
+Après :
+
+```csharp
+[HttpPost]
+public async Task<ActionResult<ProductResponse>> Create(ProductCreateRequest request)
 {
     var product = ProductMapper.ToEntity(request);
 
-    await _productService.CreateProductAsync(product);
+    int newId = await _productService.CreateProductAsync(product);
 
-    return CreatedAtAction(nameof(GetById), new { id = product.Id }, null);
+    product.Id = newId;
+
+    return CreatedAtAction(nameof(GetById), new { id = newId }, ProductMapper.ToResponse(product));
 }
 ```
 
@@ -172,12 +281,7 @@ public async Task<ActionResult> Create(ProductCreateRequest request)
 [HttpPut("{id}")]
 public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
 {
-    if (id != request.Id)
-    {
-        return BadRequest();
-    }
-
-    var product = ProductMapper.ToEntity(request);
+    var product = ProductMapper.ToEntity(request, id);
 
     await _productService.UpdateProductAsync(product);
 
@@ -185,25 +289,249 @@ public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
 }
 ```
 
+---
 
-# Peut-on faire mieux ?
+# 6. Controller final nettoyé
 
-Oui, plus tard :
+## Controllers/ProductsController.cs
 
-**AutoMapper**
+```csharp
+using BLL.Interfaces;
+using Démo_simple_API.DTO.Product;
+using Démo_simple_API.Mappers;
+using Microsoft.AspNetCore.Mvc;
 
-Mais :
+namespace Démo_simple_API.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductsController : ControllerBase
+    {
+        private readonly IProductService _productService;
 
-* plus complexe
-* moins pédagogique au début
+        public ProductsController(IProductService productService)
+        {
+            _productService = productService;
+        }
 
-ici, le mapping manuel est parfait
+        [HttpGet]
+        public async Task<ActionResult<List<ProductResponse>>> GetAll()
+        {
+            var products = await _productService.GetAllProductsAsync();
 
+            var response = products.Select(ProductMapper.ToResponse).ToList();
+
+            return Ok(response);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ProductResponse>> GetById(int id)
+        {
+            var product = await _productService.GetProductByIdAsync(id);
+
+            return Ok(ProductMapper.ToResponse(product));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<ProductResponse>> Create(ProductCreateRequest request)
+        {
+            var product = ProductMapper.ToEntity(request);
+
+            int newId = await _productService.CreateProductAsync(product);
+
+            product.Id = newId;
+
+            return CreatedAtAction(nameof(GetById), new { id = newId }, ProductMapper.ToResponse(product));
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult> Update(int id, ProductUpdateRequest request)
+        {
+            var product = ProductMapper.ToEntity(request, id);
+
+            await _productService.UpdateProductAsync(product);
+
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> Delete(int id)
+        {
+            await _productService.DeleteProductAsync(id);
+
+            return NoContent();
+        }
+    }
+}
+```
 
 ---
 
-# Schéma mental
+# 7. DTO actuels
+
+## ProductCreateRequest.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace Démo_simple_API.DTO.Product
+{
+    public class ProductCreateRequest
+    {
+        [Required]
+        [StringLength(100)]
+        public string Name { get; set; } = "";
+
+        [Range(0.01, 10000)]
+        public decimal Price { get; set; }
+    }
+}
+```
+
+## ProductUpdateRequest.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace Démo_simple_API.DTO.Product
+{
+    public class ProductUpdateRequest
+    {
+        [Required]
+        [StringLength(100)]
+        public string Name { get; set; } = "";
+
+        [Range(0.01, 10000)]
+        public decimal Price { get; set; }
+    }
+}
+```
+
+## ProductResponse.cs
+
+```csharp
+namespace Démo_simple_API.DTO.Product
+{
+    public class ProductResponse
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public decimal Price { get; set; }
+    }
+}
+```
+
+---
+
+# 8. Mapper final
+
+## Mappers/ProductMapper.cs
+
+```csharp
+using Démo_simple_API.DTO.Product;
+using Domain.Entities;
+
+namespace Démo_simple_API.Mappers
+{
+    public static class ProductMapper
+    {
+        public static ProductResponse ToResponse(Product product)
+        {
+            return new ProductResponse
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price
+            };
+        }
+
+        public static Product ToEntity(ProductCreateRequest request)
+        {
+            return new Product
+            {
+                Name = request.Name,
+                Price = request.Price
+            };
+        }
+
+        public static Product ToEntity(ProductUpdateRequest request, int id)
+        {
+            return new Product
+            {
+                Id = id,
+                Name = request.Name,
+                Price = request.Price
+            };
+        }
+    }
+}
+```
+
+---
+
+# 9. Pourquoi c’est mieux ?
+
+Avec cette organisation :
+
+* le mapping est centralisé
+* les controllers sont plus courts
+* le code est plus lisible
+* si la structure change, on modifie à un seul endroit
+
+Le controller reste concentré sur son vrai rôle : gérer HTTP.
+
+---
+
+# 10. Schéma mental
 
 ```text
 DTO ↔ Mapper ↔ Domain
 ```
+
+---
+
+# 11. Peut-on faire mieux plus tard ?
+
+Oui, plus tard on pourra utiliser un outil comme :
+
+**AutoMapper**
+
+Mais pour apprendre et pour un petit projet, le mapping manuel est très bien :
+
+* plus simple
+* plus lisible
+* plus pédagogique
+
+---
+
+# 12. Résumé
+
+Avant :
+
+* mapping dans le controller
+* duplication
+* controllers plus lourds
+
+Après :
+
+* mapping centralisé dans `ProductMapper`
+* controllers plus propres
+* code plus lisible
+
+---
+
+# 13. Conclusion
+
+Quand on commence à utiliser des DTO, il est préférable de ne pas laisser tout le mapping dans les controllers.
+
+On crée plutôt une classe dédiée.
+
+Comme ça :
+
+* le code est mieux organisé
+* le controller reste léger
+* le mapping est regroupé au même endroit
+
+En clair :
+
+**on nettoie les controllers en sortant le mapping dans un mapper**

@@ -1,7 +1,3 @@
-Parfait, je te refais ça **proprement dans ton style**, adapté à **ton projet actuel** (avec mapper, service, repository, etc.), sans partir dans des trucs avancés.
-
----
-
 # Cours — La pagination dans une API ASP.NET Core
 
 Jusqu’ici, notre API permet de récupérer des données avec :
@@ -347,23 +343,7 @@ On renvoie uniquement une liste.
 
 ---
 
-# 13. Résumé
-
-Avant :
-
-* toutes les données renvoyées
-* pas scalable
-* pas performant
-
-Après :
-
-* données découpées en pages
-* meilleures performances
-* API plus propre
-
----
-
-# 14. Conclusion
+# Conclusion
 
 La pagination est essentielle dans une API.
 
