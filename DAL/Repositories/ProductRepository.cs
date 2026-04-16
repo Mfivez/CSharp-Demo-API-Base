@@ -14,26 +14,40 @@ namespace DAL.Repositories
             _connectionString = configuration.GetConnectionString("DefaultConnection")!;
         }
 
-        public async Task<List<Product>> GetAllAsync()
+        public async Task<List<Product>> GetAllAsync(int page, int pageSize)
         {
             var products = new List<Product>();
 
             await using SqlConnection connection = new SqlConnection(_connectionString);
-            const string query = "SELECT Id, Name, Price FROM Products";
+
+            const string query = @"
+        SELECT Id, Name, Price
+        FROM Products
+        ORDER BY Id
+        OFFSET @Offset ROWS
+        FETCH NEXT @PageSize ROWS ONLY";
 
             await using SqlCommand command = new SqlCommand(query, connection);
 
+            int offset = (page - 1) * pageSize;
+
+            command.Parameters.AddWithValue("@Offset", offset);
+            command.Parameters.AddWithValue("@PageSize", pageSize);
+
             await connection.OpenAsync();
+
             await using SqlDataReader reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
-                products.Add(new Product
+                var product = new Product
                 {
                     Id = Convert.ToInt32(reader["Id"]),
                     Name = reader["Name"].ToString() ?? "",
                     Price = Convert.ToDecimal(reader["Price"])
-                });
+                };
+
+                products.Add(product);
             }
 
             return products;

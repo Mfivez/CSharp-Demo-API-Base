@@ -13,9 +13,9 @@ namespace BLL.Services
             _productRepository = productRepository;
         }
 
-        public async Task<List<Product>> GetAllProductsAsync()
+        public async Task<List<Product>> GetAllProductsAsync(int page, int pageSize)
         {
-            return await _productRepository.GetAllAsync();
+            return await _productRepository.GetAllAsync(page, pageSize);
         }
 
         public async Task<Product> GetProductByIdAsync(int id)

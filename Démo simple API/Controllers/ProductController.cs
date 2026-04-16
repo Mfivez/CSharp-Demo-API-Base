@@ -17,9 +17,12 @@ namespace Démo_simple_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<ProductResponse>>> GetAll()
+        public async Task<ActionResult<List<ProductResponse>>> GetAll(int page = 1, int pageSize = 10)
         {
-            var products = await _productService.GetAllProductsAsync();
+            page = page < 1 ? 1 : page;
+            pageSize = pageSize > 50 ? 50 : page;
+
+            var products = await _productService.GetAllProductsAsync(page, pageSize);
 
             var response = products.Select(ProductMapper.ToResponse).ToList();
 
